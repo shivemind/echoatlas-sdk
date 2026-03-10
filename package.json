@@ -1,0 +1,62 @@
+{
+  "name": "@echoatlas/sdk",
+  "version": "1.0.0",
+  "description": "Client SDK for integrating any website with EchoAtlas Observatory and Underground monitoring",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./bot-detection": {
+      "types": "./dist/bot-detection.d.ts",
+      "import": "./dist/bot-detection.mjs",
+      "require": "./dist/bot-detection.js"
+    },
+    "./edge": {
+      "types": "./dist/edge.d.ts",
+      "import": "./dist/edge.mjs",
+      "require": "./dist/edge.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "echoatlas",
+    "observatory",
+    "underground",
+    "bot-detection",
+    "agent-monitoring",
+    "telemetry",
+    "canary-trap",
+    "ai-agent",
+    "crawler-detection"
+  ],
+  "author": "EchoAtlas",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shivemind/echo_atlas",
+    "directory": "sdk"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
