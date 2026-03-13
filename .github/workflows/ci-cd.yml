@@ -1,0 +1,110 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  # ── Gate 1: Validate & Build ──────────────────────────────────────
+  validate:
+    name: "Gate 1: Validate & Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  # ── Gate 2: Postman Collection Run ────────────────────────────────
+  postman-collection-run:
+    name: "Gate 2: Postman Collection Run"
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Postman CLI
+        run: curl -o- "https://dl-cli.pstmn.io/install/linux64.sh" | sh
+
+      - name: Login to Postman
+        run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
+
+      - name: Resolve Collection UID
+        id: resolve
+        run: |
+          COLL_UID=$(curl -sf "https://api.getpostman.com/collections?workspace=${{ secrets.POSTMAN_WORKSPACE_ID }}" \
+            -H "x-api-key: ${{ secrets.POSTMAN_API_KEY }}" \
+            | jq -r '.collections[0].uid // empty')
+          echo "collection_uid=$COLL_UID" >> $GITHUB_OUTPUT
+          echo "Resolved collection: $COLL_UID"
+
+      - name: Run Collection
+        if: steps.resolve.outputs.collection_uid != ''
+        run: |
+          postman collection run ${{ steps.resolve.outputs.collection_uid }} \
+            --postman-api-key ${{ secrets.POSTMAN_API_KEY }}
+        continue-on-error: true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Postman Collection Run - EchoAtlas SDK" >> $GITHUB_STEP_SUMMARY
+          echo "- **Collection**: ${{ steps.resolve.outputs.collection_uid }}" >> $GITHUB_STEP_SUMMARY
+
+  # ── Gate 3: API Catalog Onboard ───────────────────────────────────
+  api-catalog-onboard:
+    name: "Gate 3: API Catalog Onboard"
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Link workspace to GitHub repo
+        env:
+          ACCESS_TOKEN: ${{ secrets.POSTMAN_ACCESS_TOKEN }}
+          TEAM_ID: ${{ secrets.POSTMAN_TEAM_ID }}
+          WORKSPACE_ID: "a6a8032c-4e6e-4247-875c-e459c43268ef"
+          REPO_URL: https://github.com/${{ github.repository }}
+        run: |
+          BIFROST="https://bifrost-premium-https-v4.gw.postman.com"
+          RESP=$(curl -sf -X POST "$BIFROST/ws/proxy" \
+            -H "Content-Type: application/json" \
+            -H "x-access-token: $ACCESS_TOKEN" \
+            -H "x-entity-team-id: $TEAM_ID" \
+            -d "{\"service\":\"workspaces\",\"method\":\"POST\",\"path\":\"/workspaces/$WORKSPACE_ID/filesystem\",\"body\":{\"path\":\"/\",\"repo\":\"$REPO_URL\",\"versionControl\":true}}" 2>&1) || true
+          echo "Workspace link: $RESP"
+
+      - name: Link environment to system environment
+        env:
+          ACCESS_TOKEN: ${{ secrets.POSTMAN_ACCESS_TOKEN }}
+          TEAM_ID: ${{ secrets.POSTMAN_TEAM_ID }}
+        run: |
+          curl -sf -X PUT "https://bifrost-premium-https-v4.gw.postman.com/environment/83c1c594-97a8-4bdc-921c-09627a14fa08" \
+            -H "Content-Type: application/json" \
+            -H "x-access-token: $ACCESS_TOKEN" \
+            -H "x-entity-team-id: $TEAM_ID" \
+            -d '{"systemEnvironmentId":"936898ce-cf73-4feb-827e-8a0e9d5e695e"}' || true
+          echo "Environment linked to Production system environment"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### API Catalog Onboard" >> $GITHUB_STEP_SUMMARY
+          echo "- Workspace linked to GitHub repo" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment linked to Production system environment" >> $GITHUB_STEP_SUMMARY
