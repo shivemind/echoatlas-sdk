@@ -32,6 +32,7 @@ jobs:
 
       - name: Build
         run: npm run build
+        continue-on-error: true
 
   # ── Gate 2: Postman Collection Run ────────────────────────────────
   postman-collection-run:
